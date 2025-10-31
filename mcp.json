@@ -1,0 +1,10 @@
+{
+  "name": "mju-notice-mcp",
+  "version": "1.0.0",
+  "runtime": "python3.10",
+  "startCommand": "python main.py",
+  "configSchema": {
+    "type": "object",
+    "properties": {}
+  }
+}
