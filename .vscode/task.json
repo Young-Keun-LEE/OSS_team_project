@@ -4,8 +4,8 @@
     {
       "label": "명지대 공지사항 크롤링", 
       "type": "shell", 
-      "command": "python main.py", 
-      "problemMatcher": [],
+      "command": "uv run python main.py", 
+      "problemMatcher": [], 
       "presentation": {
         "reveal": "always",
         "clear": true 
