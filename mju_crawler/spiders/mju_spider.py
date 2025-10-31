@@ -1,4 +1,6 @@
 import scrapy
+import re
+
 
 class MjuNoticeSpider(scrapy.Spider):
     name = "mju_notice"
@@ -7,32 +9,47 @@ class MjuNoticeSpider(scrapy.Spider):
     ]
 
     def parse(self, response):
-        # 1. response.css()를 사용하여 페이지의 HTML에서 원하는 부분을 선택합니다.
-        #    '_artclTdTitle' 클래스를 가진 <td> 요소 안의 <a> 태그를 모두 선택합니다.
+        # 제목 셀 안의 <a> 요소들을 선택합니다.
         notice_links = response.css("td._artclTdTitle a")
 
-        # 2. 선택된 모든 <a> 태그에 대해 반복문을 실행합니다.
-        for notice in notice_links:
-            # 3. 각 <a> 태그(notice) 안에서 추가로 CSS 선택자를 사용하여 데이터를 추출합니다.
-            
-            # 제목(title) 추출: <a> 태그 안의 <strong> 태그에 있는 텍스트를 가져옵니다.
-            # ::text는 태그 내부의 텍스트 노드를 의미합니다.
-            # .get()은 선택된 결과 중 첫 번째 항목을 문자열로 반환합니다.
-            # .strip()은 텍스트 양옆의 불필요한 공백을 제거합니다.
-            title = notice.css("strong::text").get().strip()
-            
-            # 링크(link) 추출: <a> 태그의 'href' 속성 값을 가져옵니다.
-            # ::attr(href)는 href 속성을 의미합니다.
-            link = notice.attrib['href'] # 또는 notice.css('::attr(href)').get()
-            
-            # 4. 상대 경로를 절대 경로로 변환합니다.
-            #    예: '/bbs/.../artclView.do' -> 'https://www.mju.ac.kr/bbs/.../artclView.do'
-            absolute_link = response.urljoin(link)
+        date_regex = re.compile(r"(\d{4}[-./]\d{1,2}[-./]\d{1,2})|\d{4}\s*년\s*\d{1,2}\s*월\s*\d{1,2}\s*일")
 
-            # 5. 추출된 데이터를 딕셔너리 형태로 `yield` 합니다.
-            #    `yield`는 Scrapy 엔진에 "데이터 항목 하나를 찾았다"고 알려주는 역할을 합니다.
-            #    Scrapy는 이렇게 yield된 딕셔너리들을 모아서 파일로 저장하거나 다른 처리를 합니다.
+        for notice in notice_links:
+            # 제목 안전 추출
+            title = notice.css("strong::text").get()
+            if title:
+                title = title.strip()
+            else:
+                title = notice.xpath("normalize-space(string(.))").get() or ""
+
+            # 링크 추출
+            link = notice.attrib.get('href') or notice.css('::attr(href)').get()
+            absolute_link = response.urljoin(link) if link else ""
+
+            # 날짜 추출: 여러 후보 텍스트에서 날짜 패턴을 찾음
+            tr = notice.xpath("ancestor::tr[1]")
+            candidates = []
+
+            # 1) 바로 옆 td들 (다음 td, 다음다음 td, 마지막 td)
+            for idx in (1, 2):
+                texts = notice.xpath(f"ancestor::td[1]/following-sibling::td[{idx}]//text()").getall()
+                candidates.extend([t.strip() for t in texts if t and t.strip()])
+            last_texts = notice.xpath("ancestor::td[1]/parent::tr/td[last()]//text()").getall()
+            candidates.extend([t.strip() for t in last_texts if t and t.strip()])
+
+            # 2) fallback: tr 내부 모든 텍스트
+            if not candidates:
+                candidates = [t.strip() for t in tr.xpath('.//td//text()').getall() if t and t.strip()]
+
+            found_date = ""
+            for t in candidates:
+                m = date_regex.search(t)
+                if m:
+                    found_date = m.group(0)
+                    break
+
             yield {
                 'title': title,
                 'link': absolute_link,
+                'date': found_date,
             }
