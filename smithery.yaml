@@ -1,0 +1,20 @@
+name: mju-notice-mcp
+version: 1.0.0
+kind: mcp
+
+runtime:
+  language: python
+  version: "3.10"
+
+build:
+  install:
+    - pip install --upgrade pip
+    - pip install -r requirements.txt
+
+run:
+  command: python mju_crawler/main.py
+
+include:
+  - mju_crawler/mcp.json
+  - mju_crawler/**
+  - requirements.txt
